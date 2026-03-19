@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SlackForever</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- ═══════════════════════════════════════ -->
+        <!-- Top Bar -->
+        <!-- ═══════════════════════════════════════ -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <div class="workspace-icon" id="workspace-icon"></div>
+                <div class="workspace-switcher" id="workspace-switcher">
+                    <span class="workspace-name" id="workspace-name">Slack Archive</span>
+                    <svg class="ws-caret" viewBox="0 0 20 20" width="12" height="12" id="ws-caret" style="display:none"><path fill="currentColor" d="M6 8l4 4 4-4"/></svg>
+                </div>
+                <!-- Workspace dropdown -->
+                <div class="ws-dropdown" id="ws-dropdown" style="display:none">
+                    <div class="ws-dropdown-list" id="ws-dropdown-list"></div>
+                    <div class="ws-dropdown-add" onclick="showSetupWizardForNewWorkspace()">+ Add another workspace</div>
+                </div>
+            </div>
+            <div class="topbar-search">
+                <div class="search-box">
+                    <svg class="search-icon" viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M8.5 3a5.5 5.5 0 014.383 8.823l3.896 3.9a.75.75 0 01-1.06 1.06l-3.9-3.896A5.5 5.5 0 118.5 3zm0 1.5a4 4 0 100 8 4 4 0 000-8z"/></svg>
+                    <input type="text" id="search-input" placeholder="Search messages..." />
+                </div>
+            </div>
+            <div class="topbar-right">
+                <button class="btn-topbar" id="btn-sync" title="Sync from Slack">
+                    <svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M10 3a7 7 0 017 7h-2a5 5 0 00-10 0H3a7 7 0 017-7zm0 14a7 7 0 01-7-7h2a5 5 0 0010 0h2a7 7 0 01-7 7z"/></svg>
+                </button>
+                <button class="btn-topbar" id="btn-stats" title="Archive Stats">
+                    <svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M2 17V7h4v10H2zm6 0V3h4v14H8zm6 0V9h4v8h-4z"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- Main Layout -->
+        <!-- ═══════════════════════════════════════ -->
+        <div class="main-container">
+
+            <!-- ── Sidebar ── -->
+            <nav class="sidebar" id="sidebar">
+                <div class="sidebar-nav">
+                    <a class="sidebar-nav-item active" data-view="home">
+                        <svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M10 1l9 8h-3v9H4V9H1l9-8zm0 2.83L5 8.45V16h10V8.45L10 3.83z"/></svg>
+                        <span>Home</span>
+                    </a>
+                    <a class="sidebar-nav-item" data-view="dms">
+                        <svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M6.5 2h7A4.5 4.5 0 0118 6.5v3a4.5 4.5 0 01-4.5 4.5H11l-4.5 4V14H6.5A4.5 4.5 0 012 9.5v-3A4.5 4.5 0 016.5 2z"/></svg>
+                        <span>DMs</span>
+                    </a>
+                    <a class="sidebar-nav-item" data-view="activity">
+                        <svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M10 2a8 8 0 110 16 8 8 0 010-16zm-.75 3.5v5l4.33 2.5.75-1.3-3.58-2.07V5.5h-1.5z"/></svg>
+                        <span>Activity</span>
+                    </a>
+                </div>
+                <div class="channel-sections">
+                    <!-- DMs first -->
+                    <div class="channel-section">
+                        <div class="section-header" data-toggle="dms-list">
+                            <svg class="caret" viewBox="0 0 20 20" width="12" height="12"><path fill="currentColor" d="M6 8l4 4 4-4"/></svg>
+                            <span>Direct Messages</span>
+                            <span class="section-count" id="dms-count"></span>
+                        </div>
+                        <ul class="channel-list" id="dms-list"></ul>
+                    </div>
+                    <!-- Channels -->
+                    <div class="channel-section">
+                        <div class="section-header" data-toggle="channels-list">
+                            <svg class="caret" viewBox="0 0 20 20" width="12" height="12"><path fill="currentColor" d="M6 8l4 4 4-4"/></svg>
+                            <span>Channels</span>
+                            <span class="section-count" id="channels-count"></span>
+                        </div>
+                        <ul class="channel-list" id="channels-list"></ul>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- ── Chat Area ── -->
+            <main class="chat-area">
+                <!-- Channel Header -->
+                <div class="chat-header" id="chat-header">
+                    <div class="chat-header-info">
+                        <h2 id="channel-title">Select a channel</h2>
+                        <span class="channel-topic" id="channel-topic"></span>
+                    </div>
+                    <div class="chat-header-actions">
+                        <span class="member-count" id="member-count"></span>
+                        <button class="chat-header-btn" id="btn-huddle" title="Start a huddle" style="display:none">
+                            <svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M10 1C6.69 1 4 3.69 4 7v2c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h2v-8H5V7c0-2.76 2.24-5 5-5s5 2.24 5 5v2h-1v8h2c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2V7c0-3.31-2.69-6-6-6z"/></svg>
+                        </button>
+                        <button class="chat-header-btn" id="btn-pins" title="Pinned messages" style="display:none">
+                            <svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M12.5 2.5l5 5-2 2-1-1-3 3v3l-1 1-3-3-3.5 3.5-1-1L6.5 12l-3-3 1-1h3l3-3-1-1 2-2z"/></svg>
+                        </button>
+                        <button class="chat-header-btn" id="btn-channel-details" title="Channel details" style="display:none">
+                            <svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M10 2a8 8 0 110 16 8 8 0 010-16zm0 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM10 6a1 1 0 110 2 1 1 0 010-2zm-1 3.5h2v5h-2v-5z"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Messages -->
+                <div class="messages-container" id="messages-container">
+                    <div class="messages-scroll" id="messages-scroll">
+                        <div class="load-more" id="load-more" style="display:none">
+                            <button class="btn-load-more" id="btn-load-more">Load older messages</button>
+                        </div>
+                        <div id="messages-list" class="messages-list">
+                            <div class="welcome-screen" id="welcome-screen">
+                                <div class="welcome-icon">
+                                    <svg viewBox="0 0 24 24" width="64" height="64"><path fill="#4A154B" d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zm6.313 2.521a2.528 2.528 0 012.521-2.521A2.528 2.528 0 0120.19 8.834a2.528 2.528 0 01-2.522 2.521h-2.521V8.834zm-1.271 0a2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.522-2.521V2.522A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v6.312zm-2.521 6.313a2.528 2.528 0 012.521 2.522 2.527 2.527 0 01-2.521 2.52 2.527 2.527 0 01-2.522-2.52v-2.522h2.522zm0-1.271a2.527 2.527 0 01-2.522-2.521 2.528 2.528 0 012.522-2.522h6.312A2.528 2.528 0 0124 15.165a2.528 2.528 0 01-2.522 2.521h-6.312z"/></svg>
+                                </div>
+                                <h2>Welcome to SlackForever</h2>
+                                <p>Select a channel from the sidebar to view messages.</p>
+                                <p class="welcome-hint" style="max-width:420px">
+                                    <strong>How it works:</strong> Slack free plan hides messages older than 90 days.
+                                    This app saves everything it can access <em>right now</em> to your local machine.
+                                    Sync regularly and you'll never lose messages again.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Typing Indicator -->
+                <div class="typing-indicator" id="typing-indicator" style="display:none">
+                    <span class="typing-dots"><span></span><span></span><span></span></span>
+                    <span class="typing-text">Someone is typing...</span>
+                </div>
+
+                <!-- Message Composer -->
+                <div class="composer" id="composer" style="display:none">
+                    <!-- Formatting Toolbar -->
+                    <div class="composer-toolbar">
+                        <button class="composer-fmt-btn" data-fmt="bold" title="Bold (Ctrl+B)"><strong>B</strong></button>
+                        <button class="composer-fmt-btn" data-fmt="italic" title="Italic (Ctrl+I)"><em>I</em></button>
+                        <button class="composer-fmt-btn" data-fmt="strike" title="Strikethrough (Ctrl+Shift+X)"><s>S</s></button>
+                        <span class="composer-toolbar-divider"></span>
+                        <button class="composer-fmt-btn" data-fmt="code" title="Inline code">
+                            <svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M6.5 5.5L1 10l5.5 4.5 1-1.2L3.3 10l4.2-3.3-1-1.2zm7 0l-1 1.2L16.7 10l-4.2 3.3 1 1.2L19 10l-5.5-4.5z"/></svg>
+                        </button>
+                        <button class="composer-fmt-btn" data-fmt="codeblock" title="Code block">
+                            <svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M3 3h14a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1zm1 3v9h12V6H4z"/></svg>
+                        </button>
+                        <span class="composer-toolbar-divider"></span>
+                        <button class="composer-fmt-btn" data-fmt="link" title="Link">
+                            <svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M8.5 13.5l-1.8 1.8a2 2 0 01-2.8-2.8l3.5-3.5a2 2 0 012.8 0l.7-.7a3 3 0 00-4.2 0l-3.5 3.5a3 3 0 004.2 4.2l1.8-1.8-.7-.7zm3-7l1.8-1.8a2 2 0 012.8 2.8l-3.5 3.5a2 2 0 01-2.8 0l-.7.7a3 3 0 004.2 0l3.5-3.5a3 3 0 00-4.2-4.2l-1.8 1.8.7.7z"/></svg>
+                        </button>
+                        <button class="composer-fmt-btn" data-fmt="ol" title="Ordered list">
+                            <svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M3 4h1v3H3V6H2V5h1V4zm-1 7h2v.5H3v1h1V13H2v-2zm5-5h11v1.5H6V6zm0 4h11v1.5H6V10zm0 4h11v1.5H6V14z"/></svg>
+                        </button>
+                        <button class="composer-fmt-btn" data-fmt="ul" title="Bulleted list">
+                            <svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M3 5.5a1 1 0 110 2 1 1 0 010-2zm0 4a1 1 0 110 2 1 1 0 010-2zm0 4a1 1 0 110 2 1 1 0 010-2zM6 6h11v1.5H6V6zm0 4h11v1.5H6V10zm0 4h11v1.5H6V14z"/></svg>
+                        </button>
+                    </div>
+                    <!-- Input Area -->
+                    <div class="composer-input-wrap">
+                        <textarea class="composer-input" id="message-input"
+                                  placeholder="Type a message..." rows="1"></textarea>
+                    </div>
+                    <!-- Footer Actions -->
+                    <div class="composer-footer">
+                        <div class="composer-footer-left">
+                            <button class="composer-action-btn" id="btn-attach" title="Attach file">
+                                <svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M10.5 4a3.5 3.5 0 013.5 3.5v7a2.5 2.5 0 01-5 0V8a1.5 1.5 0 013 0v5.5h-1.5V8a.5.5 0 00-1 0v6.5a1 1 0 002 0V7.5a2 2 0 00-4 0v7a3.5 3.5 0 007 0V7.5a3.5 3.5 0 00-7 0v7h-1.5v-7A5 5 0 0110.5 2.5z"/></svg>
+                            </button>
+                            <button class="composer-action-btn" id="btn-emoji-composer" title="Emoji">
+                                <svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M10 2a8 8 0 110 16 8 8 0 010-16zm0 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 8a1 1 0 112 0 1 1 0 01-2 0zm5 0a1 1 0 112 0 1 1 0 01-2 0zm-5 3.5c0-.28.22-.5.5-.5h6c.28 0 .5.22.5.5a3.5 3.5 0 01-7 0z"/></svg>
+                            </button>
+                            <button class="composer-action-btn" id="btn-mention" title="Mention someone">
+                                <svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M10 2a8 8 0 015.29 14h-1.68A6.5 6.5 0 1010 3.5a6.5 6.5 0 016.5 6.5c0 1.38-.56 2.5-1.5 2.5s-1.5-1.12-1.5-2.5V7h-1.5v.59A3 3 0 107.5 10a3 3 0 004.38 2.66c.45.82 1.24 1.34 2.12 1.34A3.5 3.5 0 0018 10a8 8 0 00-8-8zm0 6.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/></svg>
+                            </button>
+                        </div>
+                        <div class="composer-footer-right">
+                            <span class="live-indicator" id="live-indicator">
+                                <span class="live-dot"></span> Live
+                            </span>
+                            <button class="composer-send-btn" id="btn-send" title="Send (Enter)">
+                                <svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M1.5 2.25a.755.755 0 011-.71l15.596 7.808a.73.73 0 010 1.305L2.5 18.462a.755.755 0 01-1-.71V11.5L12 10 1.5 8.5V2.25z"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Hidden file input -->
+                    <input type="file" id="file-input" style="display:none" multiple>
+                </div>
+            </main>
+
+            <!-- ── Thread Panel ── -->
+            <aside class="thread-panel" id="thread-panel" style="display:none">
+                <div class="thread-header">
+                    <h3>Thread</h3>
+                    <span class="thread-channel-name" id="thread-channel-name"></span>
+                    <button class="panel-close-btn" id="btn-close-thread">&times;</button>
+                </div>
+                <div class="thread-messages" id="thread-messages"></div>
+                <div class="thread-composer">
+                    <textarea class="thread-input" id="thread-input" placeholder="Reply..." rows="1"></textarea>
+                    <button class="composer-send-btn thread-send-btn" id="btn-thread-send" title="Send reply">
+                        <svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M1.5 2.25a.755.755 0 011-.71l15.596 7.808a.73.73 0 010 1.305L2.5 18.462a.755.755 0 01-1-.71V11.5L12 10 1.5 8.5V2.25z"/></svg>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- ── Channel Details Panel ── -->
+            <aside class="details-panel" id="details-panel" style="display:none">
+                <div class="details-header">
+                    <h3 id="details-title">Channel details</h3>
+                    <button class="panel-close-btn" id="btn-close-details">&times;</button>
+                </div>
+                <div class="details-tabs">
+                    <button class="details-tab active" data-tab="about">About</button>
+                    <button class="details-tab" data-tab="members">Members</button>
+                    <button class="details-tab" data-tab="files">Files</button>
+                </div>
+                <div class="details-content" id="details-content">
+                    <div class="details-tab-content active" data-tab="about" id="details-about"></div>
+                    <div class="details-tab-content" data-tab="members" id="details-members"></div>
+                    <div class="details-tab-content" data-tab="files" id="details-files"></div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- Floating Components -->
+        <!-- ═══════════════════════════════════════ -->
+
+        <!-- Emoji Picker -->
+        <div class="emoji-picker" id="emoji-picker" style="display:none">
+            <div class="emoji-picker-header">
+                <input type="text" class="emoji-picker-search" id="emoji-search" placeholder="Search emoji..." autocomplete="off">
+            </div>
+            <div class="emoji-picker-categories" id="emoji-categories"></div>
+            <div class="emoji-picker-grid" id="emoji-grid"></div>
+            <div class="emoji-picker-preview" id="emoji-preview">
+                <span class="emoji-preview-char"></span>
+                <span class="emoji-preview-name">Emoji</span>
+            </div>
+        </div>
+
+        <!-- Context Menu (right-click on messages) -->
+        <div class="context-menu" id="context-menu" style="display:none">
+            <div class="context-menu-item" data-action="copy">
+                <svg viewBox="0 0 20 20" width="14" height="14"><path fill="currentColor" d="M14 1H5a2 2 0 00-2 2v10h2V3h9V1zm3 4H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2zm0 12H7V7h10v10z"/></svg>
+                Copy text
+            </div>
+            <div class="context-menu-item" data-action="reply">
+                <svg viewBox="0 0 20 20" width="14" height="14"><path fill="currentColor" d="M6.5 2h7A4.5 4.5 0 0118 6.5v3a4.5 4.5 0 01-4.5 4.5H11l-4.5 4V14H6.5A4.5 4.5 0 012 9.5v-3A4.5 4.5 0 016.5 2z"/></svg>
+                Reply in thread
+            </div>
+            <div class="context-menu-item" data-action="react">
+                <svg viewBox="0 0 20 20" width="14" height="14"><path fill="currentColor" d="M10 2a8 8 0 110 16 8 8 0 010-16zm0 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 8a1 1 0 112 0 1 1 0 01-2 0zm5 0a1 1 0 112 0 1 1 0 01-2 0z"/></svg>
+                Add reaction
+            </div>
+            <div class="context-menu-divider"></div>
+            <div class="context-menu-item" data-action="pin">
+                <svg viewBox="0 0 20 20" width="14" height="14"><path fill="currentColor" d="M12.5 2.5l5 5-2 2-1-1-3 3v3l-1 1-3-3-3.5 3.5-1-1L6.5 12l-3-3 1-1h3l3-3-1-1 2-2z"/></svg>
+                Pin message
+            </div>
+            <div class="context-menu-item own-only" data-action="edit">
+                <svg viewBox="0 0 20 20" width="14" height="14"><path fill="currentColor" d="M15.5 2.5a2.12 2.12 0 013 3L7.5 16.5 2 18l1.5-5.5L14.5 1.5z"/></svg>
+                Edit message
+            </div>
+            <div class="context-menu-item own-only danger" data-action="delete">
+                <svg viewBox="0 0 20 20" width="14" height="14"><path fill="currentColor" d="M6 2l1-1h6l1 1h4v2H2V2h4zM3 5h14l-1 13H4L3 5zm4 2v9h1V7H7zm3 0v9h1V7h-1zm3 0v9h1V7h-1z"/></svg>
+                Delete message
+            </div>
+        </div>
+
+        <!-- User Profile Popover -->
+        <div class="user-profile-popup" id="user-profile-popup" style="display:none">
+            <div class="user-profile-banner"></div>
+            <div class="user-profile-body">
+                <img class="user-profile-avatar" id="profile-avatar" src="" alt="">
+                <h3 class="user-profile-name" id="profile-name"></h3>
+                <p class="user-profile-title" id="profile-title"></p>
+                <div class="user-profile-status" id="profile-status"></div>
+                <div class="user-profile-fields" id="profile-fields"></div>
+                <div class="user-profile-actions">
+                    <button class="btn-profile-action" id="btn-profile-message">
+                        <svg viewBox="0 0 20 20" width="14" height="14"><path fill="currentColor" d="M6.5 2h7A4.5 4.5 0 0118 6.5v3a4.5 4.5 0 01-4.5 4.5H11l-4.5 4V14H6.5A4.5 4.5 0 012 9.5v-3A4.5 4.5 0 016.5 2z"/></svg>
+                        Message
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mention Autocomplete -->
+        <div class="mention-autocomplete" id="mention-autocomplete" style="display:none">
+            <div class="mention-list" id="mention-list"></div>
+        </div>
+
+        <!-- File Drop Overlay -->
+        <div class="file-drop-overlay" id="file-drop-overlay" style="display:none">
+            <div class="file-drop-content">
+                <svg viewBox="0 0 24 24" width="48" height="48"><path fill="#4A154B" d="M19 13h-4V9h-2v4H9v2h4v4h2v-4h4v-2zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+                <h3>Drop files to upload</h3>
+                <p>Files will be shared in this channel</p>
+            </div>
+        </div>
+
+        <!-- Search Results Overlay -->
+        <div class="search-overlay" id="search-overlay" style="display:none">
+            <div class="search-results-panel">
+                <div class="search-results-header">
+                    <h3>Search Results</h3>
+                    <button class="panel-close-btn" id="btn-close-search">&times;</button>
+                </div>
+                <div class="search-results-list" id="search-results-list"></div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- Setup Wizard (full-screen overlay) -->
+        <!-- ═══════════════════════════════════════ -->
+        <div class="setup-wizard" id="setup-wizard" style="display:none">
+            <div class="setup-container">
+                <div class="setup-logo">
+                    <svg viewBox="0 0 24 24" width="56" height="56"><path fill="#4A154B" d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zm6.313 2.521a2.528 2.528 0 012.521-2.521A2.528 2.528 0 0120.19 8.834a2.528 2.528 0 01-2.522 2.521h-2.521V8.834zm-1.271 0a2.528 2.528 0 01-2.521 2.521 2.528 2.528 0 01-2.522-2.521V2.522A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v6.312zm-2.521 6.313a2.528 2.528 0 012.521 2.522 2.527 2.527 0 01-2.521 2.52 2.527 2.527 0 01-2.522-2.52v-2.522h2.522zm0-1.271a2.527 2.527 0 01-2.522-2.521 2.528 2.528 0 012.522-2.522h6.312A2.528 2.528 0 0124 15.165a2.528 2.528 0 01-2.522 2.521h-6.312z"/></svg>
+                </div>
+                <h1 class="setup-title">SlackForever</h1>
+                <p class="setup-subtitle">Save & browse all your Slack messages — even ones older than 90 days</p>
+
+                <!-- Step indicators -->
+                <div class="setup-steps" id="setup-steps-bar">
+                    <div class="setup-step active" data-step="1"><span class="step-num">1</span> Method</div>
+                    <div class="setup-step-line"></div>
+                    <div class="setup-step" data-step="2"><span class="step-num">2</span> Get Token</div>
+                    <div class="setup-step-line"></div>
+                    <div class="setup-step" data-step="3"><span class="step-num">3</span> Connect</div>
+                </div>
+
+                <!-- Step 1: Choose method -->
+                <div class="setup-panel" id="setup-step-1">
+                    <h2>How do you want to connect?</h2>
+                    <div class="method-cards">
+                        <div class="method-card recommended" onclick="chooseMethod('browser')">
+                            <div class="method-badge">Recommended — No admin needed</div>
+                            <div class="method-card-icon">
+                                <svg viewBox="0 0 24 24" width="32" height="32"><path fill="#4a154b" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                            </div>
+                            <div>
+                                <h3>Browser Token</h3>
+                                <p>Extract your token from Slack in your browser. No admin approval needed.</p>
+                            </div>
+                            <span class="method-arrow">&rarr;</span>
+                        </div>
+                        <div class="method-card" onclick="chooseMethod('app')">
+                            <div class="method-card-icon">
+                                <svg viewBox="0 0 24 24" width="32" height="32"><path fill="#888" d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+                            </div>
+                            <div>
+                                <h3>Slack App (Admin)</h3>
+                                <p>Create a Slack app with API permissions. Needs admin approval.</p>
+                            </div>
+                            <span class="method-arrow">&rarr;</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2A: Browser method -->
+                <div class="setup-panel" id="setup-step-browser" style="display:none">
+                    <h2>Get your browser token</h2>
+                    <div class="setup-instruction">
+                        <div class="instruction-num">1</div>
+                        <div>
+                            <p>Open Slack <strong>in a web browser</strong>:</p>
+                            <a href="https://app.slack.com" target="_blank" class="setup-btn-link">Open Slack in Browser</a>
+                        </div>
+                    </div>
+                    <div class="setup-instruction">
+                        <div class="instruction-num">2</div>
+                        <div>
+                            <p>Open <strong>Developer Tools</strong>:</p>
+                            <div class="keyboard-shortcuts">
+                                <span class="kbd">F12</span> or <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">I</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setup-instruction">
+                        <div class="instruction-num">3</div>
+                        <div>
+                            <p>Go to <strong>Console</strong> tab, paste this:</p>
+                            <div class="code-copy-block">
+                                <code id="token-script">(() => { try { const c = JSON.parse(localStorage.localConfig_v2); const t = c.teams[c.lastActiveTeamId]; console.log('%c TOKEN (copy this):', 'font-weight:bold;font-size:14px'); console.log('%c' + t.token, 'color:green;font-size:14px;background:#f0fff0;padding:4px 8px;border-radius:4px'); console.log('%cWorkspace: ' + t.name, 'color:gray'); console.log('%c\\nCOOKIE: The d cookie is HttpOnly so it cannot be read by JavaScript.', 'color:orange;font-weight:bold'); console.log('%cTo get it: Application tab > Cookies > app.slack.com > find \"d\" > copy its Value', 'color:blue'); return t.token; } catch(e) { return 'Could not auto-extract. Use manual method below.'; } })()</code>
+                                <button class="btn-copy" onclick="copyScript()" title="Copy"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M16 1H4a2 2 0 00-2 2v14h2V3h12V1zm3 4H8a2 2 0 00-2 2v14a2 2 0 002 2h11a2 2 0 002-2V7a2 2 0 00-2-2zm0 16H8V7h11v14z"/></svg></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setup-instruction">
+                        <div class="instruction-num">4</div>
+                        <div>
+                            <p>Get the <code>d</code> cookie from <strong>Application</strong> tab &rarr; <strong>Cookies</strong> &rarr; <code>app.slack.com</code></p>
+                            <details class="manual-steps">
+                                <summary>Alternative methods</summary>
+                                <div class="manual-content">
+                                    <p><strong>Token via Console:</strong> <code>JSON.parse(localStorage.localConfig_v2).teams</code></p>
+                                    <p><strong>Token via Network:</strong> Filter by <code>api</code>, check Payload tab</p>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+                    <div class="setup-nav">
+                        <button class="btn-secondary" onclick="setupGoToStep(1)">&larr; Back</button>
+                        <button class="btn-primary" onclick="setupGoToStep(3)">I have my token &rarr;</button>
+                    </div>
+                </div>
+
+                <!-- Step 2B: Slack App method -->
+                <div class="setup-panel" id="setup-step-app" style="display:none">
+                    <h2>Create a Slack App</h2>
+                    <div class="setup-instruction">
+                        <div class="instruction-num">1</div>
+                        <div><a href="https://api.slack.com/apps?new_app=1" target="_blank" class="setup-btn-link">Open Slack App Creator</a></div>
+                    </div>
+                    <div class="setup-instruction">
+                        <div class="instruction-num">2</div>
+                        <div><p>Choose <strong>"From scratch"</strong>, name it, pick your workspace</p></div>
+                    </div>
+                    <div class="setup-instruction">
+                        <div class="instruction-num">3</div>
+                        <div>
+                            <p>Add <strong>User Token Scopes</strong>:</p>
+                            <div class="scopes-grid">
+                                <span class="scope-tag">channels:history</span>
+                                <span class="scope-tag">channels:read</span>
+                                <span class="scope-tag">files:read</span>
+                                <span class="scope-tag">groups:history</span>
+                                <span class="scope-tag">groups:read</span>
+                                <span class="scope-tag">im:history</span>
+                                <span class="scope-tag">im:read</span>
+                                <span class="scope-tag">mpim:history</span>
+                                <span class="scope-tag">mpim:read</span>
+                                <span class="scope-tag">users:read</span>
+                                <span class="scope-tag">users:read.email</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setup-instruction">
+                        <div class="instruction-num">4</div>
+                        <div><p>Install to Workspace &rarr; Copy <strong>User OAuth Token</strong> (<code>xoxp-...</code>)</p></div>
+                    </div>
+                    <div class="setup-nav">
+                        <button class="btn-secondary" onclick="setupGoToStep(1)">&larr; Back</button>
+                        <button class="btn-primary" onclick="setupGoToStep(3)">I have my token &rarr;</button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Paste token -->
+                <div class="setup-panel" id="setup-step-3" style="display:none">
+                    <h2>Connect Your Workspace</h2>
+                    <div class="setup-instruction">
+                        <div class="instruction-num">1</div>
+                        <div>
+                            <p>Paste your <strong>token</strong>:</p>
+                            <div class="token-input-group">
+                                <input type="password" id="setup-token-input" class="token-input" placeholder="xoxc-... or xoxp-..." autocomplete="off" spellcheck="false">
+                                <button class="btn-eye"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setup-instruction" id="cookie-field" style="display:none">
+                        <div class="instruction-num">2</div>
+                        <div>
+                            <p>Paste the <code>d</code> <strong>cookie</strong>:</p>
+                            <div class="token-input-group">
+                                <input type="password" id="setup-cookie-input" class="token-input" placeholder="xoxd-..." autocomplete="off" spellcheck="false">
+                                <button class="btn-eye"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>
+                            </div>
+                            <p class="hint">Required for browser tokens (xoxc-). Stays on your machine.</p>
+                        </div>
+                    </div>
+                    <div class="setup-result" id="setup-result" style="display:none"></div>
+                    <div class="setup-nav">
+                        <button class="btn-secondary" onclick="setupGoToStep(2)">&larr; Back</button>
+                        <button class="btn-primary btn-connect" id="btn-connect" onclick="connectSlack()">
+                            <span class="btn-connect-text">Connect & Start Syncing</span>
+                            <span class="btn-connect-spinner" style="display:none">
+                                <svg class="spin-icon" viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="31 31" stroke-linecap="round"/></svg>
+                                Connecting...
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Done screen: channel picker + sync -->
+                <div class="setup-panel" id="setup-step-done" style="display:none">
+                    <div class="setup-done-icon">&#10003;</div>
+                    <h2>Connected!</h2>
+                    <p class="setup-done-team" id="setup-done-team"></p>
+                    <div id="setup-channel-picker" class="channel-picker" style="display:none"></div>
+                    <button class="btn-primary" id="btn-start-selected-sync" style="width:100%;margin-top:12px" onclick="startSelectedSync('setup')">Start Syncing Selected &rarr;</button>
+                    <div id="setup-sync-progress-area" style="display:none">
+                        <div class="sync-progress-bar-container"><div class="sync-progress-bar" id="setup-sync-bar"></div></div>
+                        <p class="setup-sync-status" id="setup-sync-status">Starting sync...</p>
+                        <p class="hint">Runs in the background. You can start browsing once channels appear.</p>
+                        <button class="btn-primary" id="btn-enter-app" style="display:none;width:100%;margin-top:12px" onclick="enterApp()">Open Archive Viewer &rarr;</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- Modals -->
+        <!-- ═══════════════════════════════════════ -->
+
+        <!-- Sync Modal -->
+        <div class="modal-overlay" id="sync-modal" style="display:none">
+            <div class="modal modal-wide">
+                <div class="modal-header">
+                    <h3>Sync from Slack</h3>
+                    <button class="modal-close-btn" id="btn-close-sync">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Select channels to sync. New messages will be added to your archive.</p>
+                    <div id="modal-channel-picker" class="channel-picker" style="display:none"></div>
+                    <div class="sync-error" id="sync-error" style="display:none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-primary" id="btn-start-sync">Sync Selected Channels</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Modal -->
+        <div class="modal-overlay" id="stats-modal" style="display:none">
+            <div class="modal modal-wide">
+                <div class="modal-header">
+                    <h3>Archive Statistics</h3>
+                    <button class="modal-close-btn" id="btn-close-stats">&times;</button>
+                </div>
+                <div class="modal-body" id="stats-body"><p>Loading stats...</p></div>
+            </div>
+        </div>
+
+        <!-- Confirm Dialog -->
+        <div class="modal-overlay" id="confirm-modal" style="display:none">
+            <div class="modal modal-small">
+                <div class="modal-header">
+                    <h3 id="confirm-title">Confirm</h3>
+                </div>
+                <div class="modal-body">
+                    <p id="confirm-message"></p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" id="confirm-cancel">Cancel</button>
+                    <button class="btn-danger" id="confirm-ok">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enhanced Content Viewer (images, PDF, video, audio) -->
+        <div class="lightbox" id="lightbox" style="display:none">
+            <div class="lightbox-backdrop"></div>
+            <div class="lightbox-content">
+                <button class="lightbox-close">&times;</button>
+                <div class="lightbox-toolbar" id="lightbox-toolbar">
+                    <span class="lightbox-filename" id="lightbox-filename"></span>
+                    <a class="lightbox-download" id="lightbox-download" download title="Download">
+                        <svg viewBox="0 0 20 20" width="18" height="18"><path fill="currentColor" d="M10 13l-5-5h3V3h4v5h3l-5 5zm-7 4v-2h14v2H3z"/></svg>
+                    </a>
+                </div>
+                <img id="lightbox-img" src="" alt="" style="display:none" />
+                <iframe id="lightbox-pdf" src="" style="display:none;width:80vw;height:80vh;border:none;border-radius:8px;background:#fff"></iframe>
+                <video id="lightbox-video" controls style="display:none;max-width:80vw;max-height:80vh;border-radius:8px"></video>
+                <audio id="lightbox-audio" controls style="display:none;width:400px"></audio>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/emoji-data.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
