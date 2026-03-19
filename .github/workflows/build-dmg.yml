@@ -1,0 +1,55 @@
+name: Build macOS DMG
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0
+  workflow_dispatch:  # Also allows manual trigger
+
+jobs:
+  build-dmg:
+    runs-on: macos-latest
+    permissions:
+      contents: write  # Needed to create releases
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build DMG
+        run: |
+          chmod +x build-dmg.sh
+          ./build-dmg.sh
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SlackForever-macOS
+          path: build/*.dmg
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*.dmg
+          generate_release_notes: true
+          body: |
+            ## SlackForever ${{ github.ref_name }}
+
+            ### macOS App
+            Download `SlackForever-*.dmg`, open it, and drag SlackForever to Applications.
+
+            **Requirements:** Python 3.8+ (install from [python.org](https://python.org) or `brew install python3`)
+
+            ### Other platforms (Linux/Windows)
+            ```bash
+            git clone https://github.com/${{ github.repository }}.git
+            cd SlackForever
+            ./setup.sh
+            ./run.sh
+            ```
