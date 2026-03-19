@@ -1,177 +1,160 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════
-# SlackForever — Build macOS DMG
-# Run this on a Mac to create SlackForever.dmg
+# SlackForever — Build standalone macOS DMG (no Python needed)
+# Uses PyInstaller to bundle Python + everything into a .app
 # ═══════════════════════════════════════════════════════════
 set -e
 
 echo "╔═══════════════════════════════════════════╗"
-echo "║   SlackForever — DMG Builder              ║"
+echo "║   SlackForever — Standalone DMG Builder   ║"
 echo "╚═══════════════════════════════════════════╝"
 echo ""
 
-# Config
 APP_NAME="SlackForever"
 VERSION="1.0.0"
-DMG_NAME="${APP_NAME}-${VERSION}"
+DMG_NAME="${APP_NAME}-${VERSION}-macOS"
 BUILD_DIR="build"
-APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
-DMG_DIR="${BUILD_DIR}/dmg"
+DIST_DIR="dist"
 
 # Check we're on macOS
 if [[ "$(uname)" != "Darwin" ]]; then
-    echo "ERROR: This script must be run on macOS to create a DMG."
-    echo "On Linux/Windows, use the run.sh script directly instead."
+    echo "ERROR: Must run on macOS. Use GitHub Actions instead."
     exit 1
 fi
 
+# Setup venv + install deps
+echo "[1/6] Setting up environment..."
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+fi
+source venv/bin/activate
+pip install -r requirements.txt pywebview pyinstaller -q
+
 # Clean previous builds
-echo "Cleaning previous builds..."
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR"
+echo "[2/6] Cleaning previous builds..."
+rm -rf "$BUILD_DIR" "$DIST_DIR" *.spec
 
-# Copy the .app template
-echo "Creating app bundle..."
-cp -R packaging/macos/SlackForever.app "$APP_BUNDLE"
-
-# Copy project files into Resources/app/
-echo "Copying project files..."
-RESOURCES="${APP_BUNDLE}/Contents/Resources/app"
-mkdir -p "$RESOURCES"
-
-# Copy only necessary files (no venv, no data, no cache)
-for item in app.py models.py slack_archiver.py workspace_config.py requirements.txt \
-            run.sh setup.sh .env.example templates static; do
-    if [ -e "$item" ]; then
-        cp -R "$item" "$RESOURCES/"
-    fi
-done
-
-# Remove any cached/data files that shouldn't be in the DMG
-rm -rf "$RESOURCES/static/files/"*
-rm -rf "$RESOURCES/static/avatars/"*
-rm -rf "$RESOURCES/data/"*
-rm -rf "$RESOURCES/__pycache__"
-
-# Keep .gitkeep files
-touch "$RESOURCES/static/files/.gitkeep" 2>/dev/null || true
-touch "$RESOURCES/static/avatars/.gitkeep" 2>/dev/null || true
-mkdir -p "$RESOURCES/data"
-
-# Make launcher executable
-chmod +x "${APP_BUNDLE}/Contents/MacOS/launcher"
-
-# Generate an icon from the Slack logo (if sips is available)
-echo "Generating app icon..."
-if command -v sips &>/dev/null; then
-    # Create a simple icon using Python
-    python3 -c "
+# Generate app icon
+echo "[3/6] Generating app icon..."
+python3 -c "
 import struct, zlib
-
-# Create a 256x256 purple square with 'SF' text as a minimal PNG icon
-# This is a placeholder — replace with a real icon for production
-width = height = 256
+width = height = 512
 pixels = []
 for y in range(height):
     row = []
     for x in range(width):
-        # Purple gradient background (#4A154B)
-        r = 74 + int((x / width) * 20)
-        g = 21
-        b = 75 + int((y / height) * 20)
-        a = 255
-        # Rounded corners
-        corner_r = 40
-        dx = min(x, width - 1 - x)
-        dy = min(y, height - 1 - y)
-        if dx < corner_r and dy < corner_r:
-            dist = ((corner_r - dx)**2 + (corner_r - dy)**2)**0.5
-            if dist > corner_r:
-                a = 0
-        row.extend([r, g, b, a])
-    pixels.append(bytes([0] + row))  # filter byte + RGBA
-
+        r, g, b, a = 74, 21, 75, 255
+        r += int((x/width)*30); b += int((y/height)*30)
+        cr = 80; dx = min(x, width-1-x); dy = min(y, height-1-y)
+        if dx < cr and dy < cr and ((cr-dx)**2+(cr-dy)**2)**0.5 > cr: a = 0
+        row.extend([r,g,b,a])
+    pixels.append(bytes([0]+row))
 raw = b''.join(pixels)
-def chunk(ctype, data):
-    c = ctype + data
-    return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xFFFFFFFF)
-
+def chunk(t,d):
+    c=t+d; return struct.pack('>I',len(d))+c+struct.pack('>I',zlib.crc32(c)&0xFFFFFFFF)
 png = b'\x89PNG\r\n\x1a\n'
-png += chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0))
-png += chunk(b'IDAT', zlib.compress(raw, 9))
+png += chunk(b'IHDR', struct.pack('>IIBBBBB',width,height,8,6,0,0,0))
+png += chunk(b'IDAT', zlib.compress(raw,9))
 png += chunk(b'IEND', b'')
+with open('icon.png','wb') as f: f.write(png)
+" 2>/dev/null
 
-with open('${APP_BUNDLE}/Contents/Resources/AppIcon.png', 'wb') as f:
-    f.write(png)
-print('Icon generated')
-" 2>/dev/null || echo "  (icon generation skipped)"
-
-    # Convert PNG to icns if possible
-    ICON_DIR="${BUILD_DIR}/AppIcon.iconset"
-    mkdir -p "$ICON_DIR"
-    if [ -f "${APP_BUNDLE}/Contents/Resources/AppIcon.png" ]; then
-        for size in 16 32 64 128 256 512; do
-            sips -z $size $size "${APP_BUNDLE}/Contents/Resources/AppIcon.png" \
-                --out "${ICON_DIR}/icon_${size}x${size}.png" &>/dev/null || true
-            double=$((size * 2))
-            if [ $double -le 1024 ]; then
-                sips -z $double $double "${APP_BUNDLE}/Contents/Resources/AppIcon.png" \
-                    --out "${ICON_DIR}/icon_${size}x${size}@2x.png" &>/dev/null || true
-            fi
-        done
-        iconutil -c icns -o "${APP_BUNDLE}/Contents/Resources/AppIcon.icns" "$ICON_DIR" 2>/dev/null || true
-    fi
+# Convert to icns
+ICON_FILE=""
+if [ -f "icon.png" ]; then
+    mkdir -p icon.iconset
+    for s in 16 32 64 128 256 512; do
+        sips -z $s $s icon.png --out "icon.iconset/icon_${s}x${s}.png" &>/dev/null || true
+        d=$((s*2))
+        [ $d -le 1024 ] && sips -z $d $d icon.png --out "icon.iconset/icon_${s}x${s}@2x.png" &>/dev/null || true
+    done
+    iconutil -c icns -o icon.icns icon.iconset 2>/dev/null && ICON_FILE="icon.icns"
+    rm -rf icon.iconset icon.png
 fi
 
+# Build with PyInstaller
+echo "[4/6] Building standalone app with PyInstaller..."
+ICON_ARG=""
+[ -n "$ICON_FILE" ] && ICON_ARG="--icon=$ICON_FILE"
+
+pyinstaller \
+    --name="$APP_NAME" \
+    --windowed \
+    --onedir \
+    $ICON_ARG \
+    --add-data "templates:templates" \
+    --add-data "static:static" \
+    --add-data ".env.example:.env.example" \
+    --hidden-import=slack_sdk \
+    --hidden-import=slack_sdk.web \
+    --hidden-import=slack_sdk.errors \
+    --hidden-import=webview \
+    --hidden-import=flask \
+    --hidden-import=dotenv \
+    --hidden-import=requests \
+    --hidden-import=models \
+    --hidden-import=workspace_config \
+    --hidden-import=slack_archiver \
+    --collect-all=webview \
+    --noconfirm \
+    desktop.py
+
+# Create data directories inside the app
+echo "[5/6] Finalizing app bundle..."
+APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
+mkdir -p "$APP_BUNDLE/Contents/Resources/data"
+mkdir -p "$APP_BUNDLE/Contents/Resources/static/files"
+mkdir -p "$APP_BUNDLE/Contents/Resources/static/avatars"
+
+# Copy .env.example into the bundle
+cp .env.example "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
+
 # Create DMG
-echo "Creating DMG..."
-mkdir -p "$DMG_DIR"
-cp -R "$APP_BUNDLE" "$DMG_DIR/"
+echo "[6/6] Creating DMG..."
+DMG_STAGE="$BUILD_DIR/dmg"
+mkdir -p "$DMG_STAGE"
+cp -R "$APP_BUNDLE" "$DMG_STAGE/"
+ln -s /Applications "$DMG_STAGE/Applications"
 
-# Create a symlink to /Applications for drag-to-install
-ln -s /Applications "$DMG_DIR/Applications"
-
-# Add a README
-cat > "$DMG_DIR/README.txt" << 'DMGREADME'
+cat > "$DMG_STAGE/README.txt" << 'EOF'
 SlackForever — Archive Slack Messages Forever
 
-INSTALLATION:
-  Drag SlackForever.app into your Applications folder.
+INSTALL:
+  Drag SlackForever.app to your Applications folder.
 
-FIRST RUN:
-  1. Double-click SlackForever in Applications
-  2. If macOS blocks it: System Settings → Privacy & Security → "Open Anyway"
-  3. The app will auto-install Python dependencies on first launch
-  4. Your browser opens with the setup wizard
+RUN:
+  Double-click SlackForever. That's it.
+  If macOS blocks it: System Settings → Privacy & Security → "Open Anyway"
 
-REQUIREMENTS:
-  - macOS 10.15+ (Catalina or later)
-  - Python 3.8+ (install from python.org or `brew install python3`)
-  - Internet connection (for Slack API access)
+  - No Python installation needed
+  - No terminal commands needed
+  - Everything is bundled inside the app
 
-For more info: https://github.com/jainsee24/SlackForever
-DMGREADME
+HOW IT WORKS:
+  1. First launch opens the setup wizard
+  2. Extract your Slack token from your browser (30 seconds)
+  3. Select channels to archive
+  4. Browse your messages forever — even after Slack deletes them
 
-# Create the DMG using hdiutil
-echo "Packaging into DMG..."
+https://github.com/jainsee24/SlackForever
+EOF
+
 hdiutil create -volname "$APP_NAME" \
-    -srcfolder "$DMG_DIR" \
+    -srcfolder "$DMG_STAGE" \
     -ov -format UDZO \
     "${BUILD_DIR}/${DMG_NAME}.dmg"
 
-# Clean up
-rm -rf "$DMG_DIR" "${BUILD_DIR}/AppIcon.iconset"
+# Cleanup
+rm -rf "$DMG_STAGE" "$ICON_FILE" *.spec
 
 echo ""
-echo "═══════════════════════════════════════════"
-echo "  DMG created: ${BUILD_DIR}/${DMG_NAME}.dmg"
-echo "═══════════════════════════════════════════"
+echo "═══════════════════════════════════════════════"
+echo "  ${BUILD_DIR}/${DMG_NAME}.dmg"
+echo "═══════════════════════════════════════════════"
 echo ""
-echo "To distribute:"
-echo "  1. Share the DMG file"
-echo "  2. Users drag SlackForever.app to Applications"
-echo "  3. Double-click to launch"
+echo "  This is a STANDALONE app:"
+echo "  - No Python needed"
+echo "  - No terminal needed"
+echo "  - Just drag to Applications and double-click"
 echo ""
-
-# Show file size
 ls -lh "${BUILD_DIR}/${DMG_NAME}.dmg"

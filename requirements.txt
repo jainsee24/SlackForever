@@ -3,3 +3,4 @@ slack-sdk==3.33.5
 requests==2.32.3
 python-dotenv==1.0.1
 gunicorn==23.0.0
+pywebview>=5.0
