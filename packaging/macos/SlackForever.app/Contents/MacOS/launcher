@@ -1,0 +1,104 @@
+#!/bin/bash
+# SlackForever macOS App Launcher
+# This script is the entry point for the .app bundle
+
+set -e
+
+# Get the directory where the app bundle lives
+APP_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+RESOURCES_DIR="$(cd "$(dirname "$0")/../Resources" && pwd)"
+
+# The actual project files are in Resources/app/
+PROJECT_DIR="$RESOURCES_DIR/app"
+
+# If project dir doesn't exist, check if we're in development mode
+if [ ! -d "$PROJECT_DIR" ]; then
+    # Development: look for project in common locations
+    for dir in "$HOME/SlackForever" "$HOME/repos/SlackForever" "$HOME/Desktop/SlackForever"; do
+        if [ -d "$dir/app.py" ] || [ -f "$dir/app.py" ]; then
+            PROJECT_DIR="$dir"
+            break
+        fi
+    done
+fi
+
+if [ ! -f "$PROJECT_DIR/app.py" ]; then
+    osascript -e 'display dialog "SlackForever project files not found.\n\nPlease run the build script first:\n  ./build-dmg.sh" with title "SlackForever" buttons {"OK"} default button 1 with icon stop'
+    exit 1
+fi
+
+cd "$PROJECT_DIR"
+
+# Check Python
+PYTHON=""
+for p in python3 python; do
+    if command -v "$p" &>/dev/null; then
+        PYTHON="$p"
+        break
+    fi
+done
+
+if [ -z "$PYTHON" ]; then
+    osascript -e 'display dialog "Python 3 is required but not installed.\n\nInstall it from:\nhttps://www.python.org/downloads/\n\nor via Homebrew:\nbrew install python3" with title "SlackForever" buttons {"OK"} default button 1 with icon stop'
+    exit 1
+fi
+
+# Setup venv if needed
+if [ ! -d "venv" ]; then
+    osascript -e 'display notification "Setting up SlackForever for the first time..." with title "SlackForever"'
+    $PYTHON -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt -q
+else
+    source venv/bin/activate
+fi
+
+# Create data directories
+mkdir -p data static/avatars static/files
+
+# Find a free port
+PORT=5000
+for p in 5000 5001 5002 5003 5004 5005; do
+    if ! lsof -i :$p &>/dev/null; then
+        PORT=$p
+        break
+    fi
+done
+
+# Start the server in background
+export FLASK_PORT=$PORT
+python3 -c "
+import sys, os
+sys.path.insert(0, '.')
+os.environ['FLASK_PORT'] = '$PORT'
+
+from app import app
+from models import init_db
+from workspace_config import migrate_from_env
+
+migrate_from_env()
+init_db()
+
+import webbrowser, threading
+def open_browser():
+    import time
+    time.sleep(1.5)
+    webbrowser.open(f'http://localhost:$PORT')
+
+threading.Thread(target=open_browser, daemon=True).start()
+app.run(host='127.0.0.1', port=$PORT, debug=False)
+" &
+
+SERVER_PID=$!
+
+# Wait for server to start
+sleep 2
+
+# Open browser
+open "http://localhost:$PORT"
+
+# Show notification
+osascript -e "display notification \"Running at http://localhost:$PORT\" with title \"SlackForever\" subtitle \"Archive viewer is ready\""
+
+# Wait for the server process
+wait $SERVER_PID
